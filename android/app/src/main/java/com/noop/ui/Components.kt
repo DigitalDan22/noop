@@ -39,8 +39,8 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -187,7 +187,7 @@ fun Modifier.frostedCardSurface(
 @Composable
 fun NoopCard(
     modifier: Modifier = Modifier,
-    padding: Dp = Metrics.cardPadding,
+    padding: Dp = AppChrome.cardPadding,
     tint: Color? = null,
     content: @Composable () -> Unit,
 ) {
@@ -210,10 +210,15 @@ fun NoopCard(
 // live now and what an import will backfill. Copy is passed verbatim by the call site.
 
 @Composable
-fun DataPendingNote(title: String, body: String, modifier: Modifier = Modifier) {
-    NoopCard(modifier = modifier, padding = 18.dp) {
+fun DataPendingNote(
+    title: String,
+    body: String,
+    modifier: Modifier = Modifier,
+    trailing: (@Composable () -> Unit)? = null,
+) {
+    NoopCard(modifier = modifier, padding = 22.dp) {
         Row(
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            horizontalArrangement = Arrangement.spacedBy(14.dp),
             verticalAlignment = Alignment.Top,
         ) {
             Icon(
@@ -222,10 +227,13 @@ fun DataPendingNote(title: String, body: String, modifier: Modifier = Modifier) 
                 tint = Palette.accent,
                 modifier = Modifier.size(20.dp),
             )
-            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            // weight keeps a long title inside the card. Without it the text measures at its
+            // full width and draws across the leading icon and the dismiss control.
+            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Text(title, style = NoopType.headline, color = Palette.textPrimary)
                 Text(body, style = NoopType.subhead, color = Palette.textSecondary)
             }
+            if (trailing != null) trailing()
         }
     }
 }
@@ -622,9 +630,11 @@ fun InsightCard(
     modifier: Modifier = Modifier,
     statusColor: Color = Palette.accent,
     tint: Color? = null,
+    header: (@Composable () -> Unit)? = null,
 ) {
     NoopCard(modifier = modifier, padding = 18.dp, tint = tint ?: statusColor) {
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            if (header != null) header()
             Overline(category)
             Text(status, style = NoopType.title1, color = statusColor)
             Text(detail, style = NoopType.subhead, color = Palette.textSecondary)
@@ -1258,6 +1268,24 @@ fun ScenicHeroBackground(
     }
 }
 
+/**
+ * Space at the end of a scroll so the last card can sit fully above the floating bar.
+ *
+ * [BottomBarStyleStore.barHeight] is the glass capsule. The system navigation inset is
+ * added separately: gesture home indicator or the taller 3-button bar. When the bar is
+ * in the reserved slot the scaffold has already reserved both, so only the small
+ * clearance remains.
+ */
+@Composable
+internal fun scrollClearanceAboveBar(): Dp {
+    val navigationInset = if (BottomBarStyleStore.overlay) {
+        WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
+    } else {
+        0.dp
+    }
+    return BottomBarStyleStore.barHeightForContent() + navigationInset + AppChrome.screenBottomClearance
+}
+
 // MARK: - ScreenScaffold (ported from Strand/Screens/ScreenScaffold.swift)
 //
 // Standard scrollable screen container: a title + optional subtitle header over the
@@ -1293,6 +1321,13 @@ fun ScreenScaffold(
     // layout); with a topBackground the canvas + scene paint in the wrapping Box's background (below) and
     // the column stays TRANSPARENT so the scene shows through behind the scroll content. Pulled out so the
     // two paths share one body.
+    val statusBarTop = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
+    // The shell does not inset the status bar, so this scaffold reaches the top of the window
+    // and the sky paints behind the clock. Content still clears the clock.
+    val contentTop = topPadding + statusBarTop
+    // End padding, inside the scroll, so the last card can move fully above the floating bar
+    // and the system navigation inset (gesture pill or 3-button bar).
+    val contentBottom = scrollClearanceAboveBar()
     val columnModifier: Modifier =
         if (topBackground == null) {
             modifier.fillMaxWidth().background(Palette.surfaceBase)
@@ -1303,19 +1338,17 @@ fun ScreenScaffold(
         Column(
             modifier = columnModifier
                 .verticalScroll(rememberScrollState())
-                // #1836: the bar's height is added to the CONTENT's bottom padding, not to the screen's
-                // layout. That distinction is the whole overlay: the screen reaches the bottom edge so its
-                // backdrop paints behind and around the glass, while the scrolling content still stops
-                // clear of the bar. Zero when the overlay is off, so the slot layout is untouched.
+                // Bottom padding is inside the scroll: the last row can travel up until it clears
+                // the glass bar and the system navigation inset.
                 .padding(
-                    start = 28.dp,
-                    end = 28.dp,
-                    top = topPadding,
-                    bottom = 28.dp + BottomBarStyleStore.barHeightForContent(),
+                    start = AppChrome.screenHorizontal,
+                    end = AppChrome.screenHorizontal,
+                    top = contentTop,
+                    bottom = contentBottom,
                 ),
             // #765: one shared inter-card spacing token (was a bare `20.dp`), so the eager + lazy scaffolds
             // and every screen through them keep the SAME uniform gap between top-level cards.
-            verticalArrangement = Arrangement.spacedBy(Metrics.screenRowSpacing),
+            verticalArrangement = Arrangement.spacedBy(AppChrome.screenRowSpacing),
         ) {
             // Compact top bar: an optional LEADING action (e.g. the Today profile avatar, mirroring iOS's
             // avatar-leading header), the screen title/subtitle, then an optional trailing action (e.g. the
@@ -1356,9 +1389,8 @@ fun ScreenScaffold(
         // backdrop over it, anchored to the TOP and bled UP behind the status bar so it reads as a
         // full-bleed scenic header; the (transparent) scroll content floats OVER both. Mirrors the iOS
         // scaffold's `.background(alignment: .top){ ZStack { surfaceBase; topBackground }.ignoresSafeArea() }`.
-        // Pull the scene up by the status-bar inset (the Scaffold already pushed this content below the
-        // bar), so the scene bleeds behind the status bar rather than starting under it.
-        val statusBarTop = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
+        // The shell does not push this content below the status bar, so the box already starts at
+        // the top of the window. No extra offset.
         Box(modifier = modifier.fillMaxSize().background(Palette.surfaceBase)) {
             Box(
                 modifier = (
@@ -1371,7 +1403,6 @@ fun ScreenScaffold(
                         Modifier
                             .fillMaxWidth()
                             .align(Alignment.TopCenter)
-                            .offset(y = -statusBarTop)
                     }
                     )
                     // PERF (#scroll-jank): promote the static scene backdrop to its OWN compositing layer so
@@ -1414,7 +1445,7 @@ fun LazyScreenScaffold(
     // (20dp) so every existing caller is byte-for-byte untouched; the liquid Today passes a tighter value
     // to match the iOS Today's compact `VStack(spacing: 12)` section rhythm (the maintainer's "iOS is
     // tighter/slicker" note). Scoped per-scaffold so no other screen's rhythm shifts.
-    rowSpacing: Dp = Metrics.screenRowSpacing,
+    rowSpacing: Dp = AppChrome.screenRowSpacing,
     leading: (@Composable () -> Unit)? = null,
     trailing: (@Composable () -> Unit)? = null,
     // Optional full-bleed scene drawn behind the scroll content at the TOP of the screen — the SAME slot
@@ -1464,6 +1495,9 @@ fun LazyScreenScaffold(
     // is transparent (scene shows through) while keeping the SAME 28dp screen inset + shared row spacing as
     // the eager ScreenScaffold. The top inset honours [topPadding] (so a custom-header screen can tighten
     // the gap above the first row, exactly like ScreenScaffold's `padding(top = topPadding)`).
+    val statusBarTop = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
+    val contentTop = topPadding + statusBarTop
+    val contentBottom = scrollClearanceAboveBar()
     val listModifier: Modifier =
         if (topBackground == null) {
             modifier.fillMaxWidth().background(Palette.surfaceBase)
@@ -1474,7 +1508,12 @@ fun LazyScreenScaffold(
         LazyColumn(
             modifier = listModifier,
             state = listState,
-            contentPadding = PaddingValues(start = 28.dp, top = topPadding, end = 28.dp, bottom = 28.dp),
+            contentPadding = PaddingValues(
+                start = AppChrome.screenHorizontal,
+                top = contentTop,
+                end = AppChrome.screenHorizontal,
+                bottom = contentBottom,
+            ),
             // #765: the shared inter-card spacing token by default (Today/Explore + the eager screens share
             // one uniform card rhythm); a caller may pass a tighter [rowSpacing] (the liquid Today does, for
             // the iOS-compact section rhythm).
@@ -1495,7 +1534,6 @@ fun LazyScreenScaffold(
         // Identical scene treatment to ScreenScaffold — including promoting the static backdrop to its own
         // compositing layer (an empty graphicsLayer {}) so the scene rasterises once and replays as a
         // texture on every scroll frame instead of being re-issued under the scrolling rows.
-        val statusBarTop = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
         Box(modifier = modifier.fillMaxSize().background(Palette.surfaceBase)) {
             Box(
                 modifier = (
@@ -1505,7 +1543,7 @@ fun LazyScreenScaffold(
                         Modifier.fillMaxSize()
                     } else {
                         // Default: a top-anchored band bled up behind the status bar.
-                        Modifier.fillMaxWidth().align(Alignment.TopCenter).offset(y = -statusBarTop)
+                        Modifier.fillMaxWidth().align(Alignment.TopCenter)
                     }
                     ).graphicsLayer { },
             ) {

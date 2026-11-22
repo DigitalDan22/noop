@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
@@ -149,7 +150,7 @@ fun StepsCalibrationScreen(
     }
 
     Surface(modifier = Modifier.fillMaxSize(), color = Palette.surfaceBase) {
-        Column(modifier = Modifier.fillMaxSize()) {
+        Column(modifier = Modifier.fillMaxSize().statusBarsPadding()) {
             Header(onClose)
             Hairline()
             Column(
@@ -162,7 +163,7 @@ fun StepsCalibrationScreen(
                     // bottom edge, so without this the last rows sit behind the bar. Zero when the overlay
                     // is off. Any future destination that scrolls outside ScreenScaffold needs the same.
                     .padding(20.dp)
-                    .padding(bottom = BottomBarStyleStore.barHeightForContent()),
+                    .padding(bottom = scrollClearanceAboveBar()),
                 verticalArrangement = Arrangement.spacedBy(Metrics.sectionGap),
             ) {
                 ExplainerCard()

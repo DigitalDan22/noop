@@ -13,20 +13,25 @@ import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import android.app.Activity
+import android.os.Build
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.noop.R
 
 // MARK: - Palette — the "Titanium & Gold" re-skin (mirrors StrandDesign/Palette.swift)
 //
@@ -457,18 +462,17 @@ object Metrics {
 
 // MARK: - Typography (ported from StrandDesign/Typography.swift §9.2)
 //
-// Helvetica Neue on Apple; on Android we use a Helvetica-Neue FontFamily where one
-// is bundled in res/font, else FontFamily.SansSerif as the documented substitute
-// (no Helvetica asset is bundled, so the platform grotesque stands in) with the same
-// sizes/weights. Numeric/live styles stay in the house sans and request TABULAR
-// figures via fontFeatureSettings = "tnum" (mirroring iOS .monospacedDigit()) so live
-// values don't reflow; Monospace is reserved for the `mono` raw/log style only.
+// Helvetica Neue on Apple. Android uses Figtree (SIL OFL), installed by NoopTheme into [sansFamily].
+// Styles are getters so they read whichever family is current. Numeric/live styles stay
+// in the house sans and request TABULAR figures via fontFeatureSettings = "tnum"
+// (mirroring iOS .monospacedDigit()) so live values don't reflow; Monospace is reserved
+// for the `mono` raw/log style only.
 
 object NoopType {
-    // Helvetica Neue family — falls back to the platform grotesque (SansSerif) when
-    // no res/font/helvetica_neue asset is bundled, per the v3 type spec.
-    private val sans = FontFamily.SansSerif
+    // Set by NoopTheme before children compose. Figtree once the theme has installed it.
+    internal var sansFamily: FontFamily = FontFamily.SansSerif
     private val monoFamily = FontFamily.Monospace
+    private val sans: FontFamily get() = sansFamily
 
     /** Display 64–80 / Bold — the recovery ring number. Tight tracking (≈ -0.04em),
      *  tabular figures so a changing value never reflows. Mirrors StrandFont.display. */
@@ -481,22 +485,22 @@ object NoopType {
      *  display(); exposed to mirror StrandFont.displayTracking. */
     fun displayTracking(size: Float = 72f): Float = -size * 0.04f
 
-    val title1 = TextStyle(fontFamily = sans, fontWeight = FontWeight.Bold, fontSize = 28.sp)
-    val title2 = TextStyle(fontFamily = sans, fontWeight = FontWeight.SemiBold, fontSize = 22.sp)
-    val headline = TextStyle(fontFamily = sans, fontWeight = FontWeight.SemiBold, fontSize = 17.sp)
-    val body = TextStyle(fontFamily = sans, fontWeight = FontWeight.Normal, fontSize = 15.sp)
-    val subhead = TextStyle(fontFamily = sans, fontWeight = FontWeight.Normal, fontSize = 13.sp)
-    val caption = TextStyle(fontFamily = sans, fontWeight = FontWeight.Normal, fontSize = 12.sp)
-    val footnote = TextStyle(fontFamily = sans, fontWeight = FontWeight.Normal, fontSize = 11.sp)
+    val title1 get() = TextStyle(fontFamily = sans, fontWeight = FontWeight.Bold, fontSize = 28.sp)
+    val title2 get() = TextStyle(fontFamily = sans, fontWeight = FontWeight.SemiBold, fontSize = 22.sp)
+    val headline get() = TextStyle(fontFamily = sans, fontWeight = FontWeight.SemiBold, fontSize = 17.sp)
+    val body get() = TextStyle(fontFamily = sans, fontWeight = FontWeight.Normal, fontSize = 15.sp)
+    val subhead get() = TextStyle(fontFamily = sans, fontWeight = FontWeight.Normal, fontSize = 13.sp)
+    val caption get() = TextStyle(fontFamily = sans, fontWeight = FontWeight.Normal, fontSize = 12.sp)
+    val footnote get() = TextStyle(fontFamily = sans, fontWeight = FontWeight.Normal, fontSize = 11.sp)
 
     /** Overline 11 / Bold, +1.4 tracking, ALL-CAPS at use site. */
-    val overline = TextStyle(
+    val overline get() = TextStyle(
         fontFamily = sans, fontWeight = FontWeight.Bold, fontSize = 11.sp,
         letterSpacing = 1.4.sp,
     )
 
     /** Mono 13 — raw / log views. */
-    val mono = TextStyle(fontFamily = monoFamily, fontWeight = FontWeight.Normal, fontSize = 13.sp)
+    val mono get() = TextStyle(fontFamily = monoFamily, fontWeight = FontWeight.Normal, fontSize = 13.sp)
 
     /** A numeric style at an arbitrary size — the house sans with TABULAR figures
      *  ('tnum') so live values don't reflow. Mirrors StrandFont.number. */
@@ -508,13 +512,13 @@ object NoopType {
         fontFamily = monoFamily, fontWeight = weight, fontSize = size.sp,
     )
 
-    val bodyNumber = TextStyle(fontFamily = sans, fontWeight = FontWeight.Medium, fontSize = 15.sp, fontFeatureSettings = "tnum")
-    val captionNumber = TextStyle(fontFamily = sans, fontWeight = FontWeight.Medium, fontSize = 12.sp, fontFeatureSettings = "tnum")
-    val metricInline = number(15f)
-    val chartValue = number(18f)
-    val chartValueLarge = number(22f)
-    val tileValue = number(24f)
-    val tileValueLarge = number(26f)
+    val bodyNumber get() = TextStyle(fontFamily = sans, fontWeight = FontWeight.Medium, fontSize = 15.sp, fontFeatureSettings = "tnum")
+    val captionNumber get() = TextStyle(fontFamily = sans, fontWeight = FontWeight.Medium, fontSize = 12.sp, fontFeatureSettings = "tnum")
+    val metricInline get() = number(15f)
+    val chartValue get() = number(18f)
+    val chartValueLarge get() = number(22f)
+    val tileValue get() = number(24f)
+    val tileValueLarge get() = number(26f)
 
     const val overlineTracking = 1.4f
 }
@@ -548,7 +552,7 @@ internal fun noopColorScheme(t: PaletteTokens, dark: Boolean): ColorScheme {
     )
 }
 
-private val NoopMaterialTypography = Typography(
+private fun noopMaterialTypography() = Typography(
     displayLarge = NoopType.display(72f),
     titleLarge = NoopType.title1,
     titleMedium = NoopType.title2,
@@ -560,6 +564,33 @@ private val NoopMaterialTypography = Typography(
     labelMedium = NoopType.caption,
     labelSmall = NoopType.overline,
 )
+
+@Suppress("DEPRECATION")
+private fun disableSystemBarContrastScrim(window: android.view.Window) {
+    // The setter is deprecated at API 35 and is still what turns off the solid status-bar
+    // scrim. Without it the sky stops at a black band. Below API 29 there is no scrim to clear.
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+        window.isStatusBarContrastEnforced = false
+        window.isNavigationBarContrastEnforced = false
+    }
+}
+
+@Composable
+private fun rememberFigtree(): FontFamily = remember {
+    // Weights the UI actually requests: Regular body, Medium numbers, SemiBold headlines,
+    // Bold display. Italics cover coach Markdown and the scoring-guide footnote, including
+    // italic spans inside a SemiBold or Bold run.
+    FontFamily(
+        Font(R.font.figtree_regular, FontWeight.Normal),
+        Font(R.font.figtree_medium, FontWeight.Medium),
+        Font(R.font.figtree_semibold, FontWeight.SemiBold),
+        Font(R.font.figtree_bold, FontWeight.Bold),
+        Font(R.font.figtree_italic, FontWeight.Normal, FontStyle.Italic),
+        Font(R.font.figtree_medium_italic, FontWeight.Medium, FontStyle.Italic),
+        Font(R.font.figtree_semibold_italic, FontWeight.SemiBold, FontStyle.Italic),
+        Font(R.font.figtree_bold_italic, FontWeight.Bold, FontStyle.Italic),
+    )
+}
 
 private val NoopShapes = Shapes(
     extraSmall = RoundedCornerShape(8.dp),
@@ -585,8 +616,13 @@ fun NoopTheme(content: @Composable () -> Unit) {
     val tokens = if (dark) DarkTokens else LightTokens
     if (Palette.active !== tokens) Palette.active = tokens
 
+    val sans = rememberFigtree()
+    NoopType.sansFamily = sans
+    val typography = remember(sans) { noopMaterialTypography() }
+
     // Status-/nav-bar icon appearance: light icons on the dark theme, dark icons on the warm-paper
     // light theme (otherwise the icons are invisible). Edge-to-edge keeps the bars transparent.
+    // The contrast scrim is off so the sky painted under the status bar is the bar, not a black band.
     val view = LocalView.current
     if (!view.isInEditMode) {
         SideEffect {
@@ -594,13 +630,14 @@ fun NoopTheme(content: @Composable () -> Unit) {
                 val controller = WindowCompat.getInsetsController(window, view)
                 controller.isAppearanceLightStatusBars = !dark
                 controller.isAppearanceLightNavigationBars = !dark
+                disableSystemBarContrastScrim(window)
             }
         }
     }
 
     MaterialTheme(
         colorScheme = noopColorScheme(tokens, dark),
-        typography = NoopMaterialTypography,
+        typography = typography,
         shapes = NoopShapes,
         content = content,
     )

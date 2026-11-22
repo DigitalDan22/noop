@@ -103,6 +103,12 @@ import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.derivedStateOf
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
+import androidx.compose.foundation.layout.ime
+import androidx.compose.foundation.layout.only
+import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.union
 import androidx.compose.foundation.layout.calculateStartPadding
 import androidx.compose.foundation.layout.calculateEndPadding
 import androidx.compose.ui.platform.LocalLayoutDirection
@@ -573,6 +579,13 @@ fun AppRoot(viewModel: AppViewModel = viewModel()) {
     Box(Modifier.fillMaxSize().nestedScroll(autoHideScroll)) {
         Scaffold(
             containerColor = Palette.surfaceBase,
+            // Do not push the screen down by the status bar or up by the navigation bar. The
+            // scaffold reaches the top of the window so the sky paints behind the clock, and the
+            // bottom bar owns the navigation inset (gesture pill or 3-button bar). Side cutouts
+            // and the IME stay inset.
+            contentWindowInsets = WindowInsets.safeDrawing
+                .only(WindowInsetsSides.Horizontal)
+                .union(WindowInsets.ime),
             bottomBar = {
                 // One unified "glass" bar: four evenly-spaced tabs — Today · Trends · Sleep · More
                 // (matches the iOS FloatingTabBar). The quick-action "+" lives in the Today header's
@@ -599,22 +612,15 @@ fun AppRoot(viewModel: AppViewModel = viewModel()) {
                 // adds this measured height to its own contentPadding instead; no shared modifier can.
                 // Slot layout: the Scaffold measured the bar into `inner`, so use it as-is.
                 // Overlay layout: the slot reserves nothing, so the bottom comes from the measured bar.
-                modifier = if (!BottomBarStyleStore.overlay) Modifier.padding(inner) else Modifier.padding(
-                    // Take the top and sides from the Scaffold, but REPLACE its bottom rather than adding
-                    // to it. Scaffold's default contentWindowInsets is WindowInsets.systemBars, so
-                    // `inner.bottom` already carries the navigation-bar inset — and the bar's measured
-                    // height carries it too, via its own navigationBarsPadding(). Adding both counted that
-                    // inset twice and left roughly a nav-bar's worth of dead space above the bar, widest
-                    // on 3-button navigation. The bar owns that inset; content just clears the bar.
+                modifier = (if (!BottomBarStyleStore.overlay) Modifier.padding(inner) else Modifier.padding(
+                    // Sides come from the scaffold (cutouts). Bottom stays 0 so the sky reaches the
+                    // screen edge. The glass bar's own navigationBarsPadding owns the gesture pill
+                    // and the taller 3-button bar; adding that inset here as well left a gap.
                     top = inner.calculateTopPadding(),
                     start = inner.calculateStartPadding(LocalLayoutDirection.current),
                     end = inner.calculateEndPadding(LocalLayoutDirection.current),
-                    // Bottom is ZERO on purpose: the screen must reach the bottom edge so its own backdrop
-                    // paints behind the glass. ScreenScaffold clears the bar from the scrolling CONTENT
-                    // instead, using BottomBarStyleStore.barHeight. Insetting here is what made the first
-                    // version of this change invisible — the bar moved, the backdrop did not follow.
                     bottom = 0.dp,
-                ),
+                )).fillMaxSize(),
                 // README motion: top-level destinations crossfade (~240ms) on the calm,
                 // decelerating global easing — nothing slides or bounces between tabs. The
                 // same fade is used for back (pop) so the bar never feels jerky. Drill-ins
@@ -1153,7 +1159,7 @@ private fun GlassBottomBar(
             // floats free of the bottom edge rather than jamming against it — iOS clears the home-indicator
             // safe area + 4pt; here navigationBarsPadding + 12dp gives the same lift.
             .navigationBarsPadding()
-            .padding(horizontal = 22.dp)
+            .padding(horizontal = AppChrome.navOuterHorizontal)
             .padding(top = 4.dp, bottom = Metrics.space12),
         contentAlignment = Alignment.Center,
     ) {
@@ -1180,7 +1186,7 @@ private fun GlassBottomBar(
                     // targets grow with it, and `barHeight` is measured afterwards so screens keep
                     // clearing the bar at any size. A graphics scale would blur it and leave the hit
                     // areas behind.
-                    .padding(horizontal = 8.dp, vertical = 7.dp * BottomBarStyleStore.scale),
+                    .padding(horizontal = 8.dp, vertical = AppChrome.navVertical * BottomBarStyleStore.scale),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(2.dp),
             ) {
@@ -1249,11 +1255,11 @@ private fun BarSlot(
         // Icon and label scale together with the padding above, so the slot grows as one piece rather
         // than a bigger box around the same small glyph.
         Icon(icon, contentDescription = null, tint = tint,
-             modifier = Modifier.size(Metrics.iconSmall * BottomBarStyleStore.scale))
+             modifier = Modifier.size(AppChrome.navIcon * BottomBarStyleStore.scale))
         Text(
             label,
             style = NoopType.footnote.copy(
-                fontSize = 10.sp * BottomBarStyleStore.scale,
+                fontSize = AppChrome.navLabel * BottomBarStyleStore.scale,
                 fontWeight = if (active) FontWeight.SemiBold else FontWeight.Medium,
             ),
             color = tint,
