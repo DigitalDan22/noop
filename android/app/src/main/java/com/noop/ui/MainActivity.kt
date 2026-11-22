@@ -20,6 +20,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -151,9 +152,17 @@ class MainActivity : ComponentActivity() {
         BackgroundImageStore.load(this)
         BottomBarStyleStore.load(this)   // #1836: bottom-bar layout choice, default the shipped slot
 
+        // Debug preview of the Pixel 9+ layer on an emulator:
+        //   adb shell am start -n <applicationId>/com.noop.ui.MainActivity --ez pixel_chrome true
+        if (BuildConfig.DEBUG) {
+            PixelDevices.previewEnabled = intent.getBooleanExtra("pixel_chrome", false)
+        }
         setContent {
-            NoopTheme {
-                NoopRoot()
+            val chrome = if (PixelDevices.isCurrent()) PixelChrome.Active else PixelChrome.Standard
+            CompositionLocalProvider(LocalPixelChrome provides chrome) {
+                NoopTheme {
+                    NoopRoot()
+                }
             }
         }
     }

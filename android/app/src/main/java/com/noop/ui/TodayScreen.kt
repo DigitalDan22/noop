@@ -1361,7 +1361,7 @@ fun TodayScreen(
         // FIX 6 (compactness): the liquid Today matches the iOS Today's tight `VStack(spacing: 12)` section
         // rhythm rather than the app-wide 20dp row gap, so the whole screen reads as compact/slick as iOS.
         // Scoped to this scaffold — no other screen's rhythm changes.
-        rowSpacing = 12.dp,
+        rowSpacing = LocalPixelChrome.current.todayRowSpacing,
         // #today-layout (hold-to-drag): the hoisted list state the section drag reads (layoutInfo/scrollBy).
         listState = todayListState,
         // LIQUID SKY BACKDROP (the pilot pattern — LiquidScreenSky.kt): the time-of-day liquid sky sits
@@ -1560,68 +1560,73 @@ fun TodayScreen(
                 // rendered localized — the same strings reaching a second sink. (#612)
                 val carriedTitle = scoreStateTitle(scoreState)
                 val carriedDetail = scoreStateDetail(scoreState)
-                Box(modifier = Modifier.fillMaxWidth()) {
-                    ScoreStateNote(scoreState)
-                    if (updateStore != null) {
-                        TodayCardDismissButton(
-                            modifier = Modifier.align(Alignment.TopEnd),
-                            onClick = {
-                                dismissTodayCard(
-                                    CARD_CARRIED_SLEEP,
-                                    carriedTitle,
-                                    carriedDetail,
-                                )
-                            },
-                        )
-                    }
-                }
+                ScoreStateNote(
+                    scoreState,
+                    trailing = if (updateStore != null) {
+                        {
+                            TodayCardDismissButton(
+                                onClick = {
+                                    dismissTodayCard(
+                                        CARD_CARRIED_SLEEP,
+                                        carriedTitle,
+                                        carriedDetail,
+                                    )
+                                },
+                            )
+                        }
+                    } else {
+                        null
+                    },
+                )
             }
             // #827: the dismissible calibrating note. Hidden once dismissed into the inbox; a "Restore to
             // Today" tap there flips calibratingDismissed back via the shared restore path above.
             if (selectedDayOffset == 0 && scoreState is ScoreState.Calibrating && !calibratingDismissed) {
-                Box(modifier = Modifier.fillMaxWidth()) {
-                    ScoreStateNote(
-                        scoreState,
-                        restartCause = ScoreState.calibrationRestartCause(
-                            ScoreState.recalibrationDay(
-                                NoopPrefs.of(context).getLong(Baselines.hrvBaselineEpochKey, 0L),
-                            ),
-                        )?.localized(),
-                    )
-                    if (updateStore != null) {
-                        TodayCardDismissButton(
-                            modifier = Modifier.align(Alignment.TopEnd),
-                            onClick = {
-                                dismissTodayCard(
-                                    CARD_CALIBRATING,
-                                    context.getString(R.string.today_update_building_baseline_title),
-                                    context.getString(R.string.today_update_building_baseline_message),
-                                )
-                            },
-                        )
-                    }
-                }
+                ScoreStateNote(
+                    scoreState,
+                    restartCause = ScoreState.calibrationRestartCause(
+                        ScoreState.recalibrationDay(
+                            NoopPrefs.of(context).getLong(Baselines.hrvBaselineEpochKey, 0L),
+                        ),
+                    )?.localized(),
+                    trailing = if (updateStore != null) {
+                        {
+                            TodayCardDismissButton(
+                                onClick = {
+                                    dismissTodayCard(
+                                        CARD_CALIBRATING,
+                                        context.getString(R.string.today_update_building_baseline_title),
+                                        context.getString(R.string.today_update_building_baseline_message),
+                                    )
+                                },
+                            )
+                        }
+                    } else {
+                        null
+                    },
+                )
             }
             if (selectedDayOffset != 0 || !scoresBuildingDismissed) {
-                Box(modifier = Modifier.fillMaxWidth()) {
-                    DataPendingNote(
-                        title = uiString(R.string.l10n_today_screen_live_now_your_scores_are_building_cb05a4e8),
-                        body = uiString(R.string.today_pending_scores_body),
-                    )
+                DataPendingNote(
+                    title = uiString(R.string.l10n_today_screen_live_now_your_scores_are_building_cb05a4e8),
+                    body = uiString(R.string.today_pending_scores_body),
                     // The × is only meaningful for today's card (a past day's note isn't dismissed).
-                    if (selectedDayOffset == 0 && updateStore != null) {
-                        TodayCardDismissButton(
-                            modifier = Modifier.align(Alignment.TopEnd),
-                            onClick = {
-                                dismissTodayCard(
-                                    CARD_SCORES_BUILDING,
-                                    context.getString(R.string.today_update_scores_building_title),
-                                    context.getString(R.string.today_update_scores_building_message),
-                                )
-                            },
-                        )
-                    }
-                }
+                    trailing = if (selectedDayOffset == 0 && updateStore != null) {
+                        {
+                            TodayCardDismissButton(
+                                onClick = {
+                                    dismissTodayCard(
+                                        CARD_SCORES_BUILDING,
+                                        context.getString(R.string.today_update_scores_building_title),
+                                        context.getString(R.string.today_update_scores_building_message),
+                                    )
+                                },
+                            )
+                        }
+                    } else {
+                        null
+                    },
+                )
             }
             }
         }
@@ -5791,7 +5796,11 @@ private fun scoreStateDetail(state: ScoreState): String = when (state) {
  *  tiles carry the real number). The whole card is the spec's "never a bare blank". Mirrors the iOS
  *  ScoreStateNote. */
 @Composable
-private fun ScoreStateNote(state: ScoreState, restartCause: String? = null) {
+private fun ScoreStateNote(
+    state: ScoreState,
+    restartCause: String? = null,
+    trailing: (@Composable () -> Unit)? = null,
+) {
     if (state is ScoreState.Scored) return
     val icon = when (state) {
         is ScoreState.Calibrating -> Icons.Filled.Tune
@@ -5824,7 +5833,7 @@ private fun ScoreStateNote(state: ScoreState, restartCause: String? = null) {
                     .padding(top = 1.dp)
                     .size(Metrics.iconSmall),
             )
-            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text(title, style = NoopType.headline, color = Palette.textPrimary)
                 Text(detail, style = NoopType.subhead, color = Palette.textSecondary)
                 // #731: when the countdown restarted because the user tapped "Recalibrate
@@ -5834,6 +5843,7 @@ private fun ScoreStateNote(state: ScoreState, restartCause: String? = null) {
                     Text(it, style = NoopType.footnote, color = Palette.textTertiary)
                 }
             }
+            if (trailing != null) trailing()
         }
     }
 }
@@ -5864,7 +5874,7 @@ private fun ChargeLegacyRrGapNote() {
                     .padding(top = 1.dp)
                     .size(Metrics.iconSmall),
             )
-            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text(title, style = NoopType.headline, color = Palette.textPrimary)
                 Text(detail, style = NoopType.subhead, color = Palette.textSecondary)
             }
