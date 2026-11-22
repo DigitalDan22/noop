@@ -630,9 +630,11 @@ fun InsightCard(
     modifier: Modifier = Modifier,
     statusColor: Color = Palette.accent,
     tint: Color? = null,
+    header: (@Composable () -> Unit)? = null,
 ) {
     NoopCard(modifier = modifier, padding = 18.dp, tint = tint ?: statusColor) {
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            if (header != null) header()
             Overline(category)
             Text(status, style = NoopType.title1, color = statusColor)
             Text(detail, style = NoopType.subhead, color = Palette.textSecondary)

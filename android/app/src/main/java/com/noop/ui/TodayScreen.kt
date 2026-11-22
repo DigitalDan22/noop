@@ -28,9 +28,13 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.DirectionsRun
@@ -1530,8 +1534,6 @@ fun TodayScreen(
         // the Updates inbox (restorable from there). Only anchored to today (offset 0).
         if (displayMetric?.recovery == null) {
             item {
-            // While the strap is mid-offload, say so, empty tiles read as final otherwise (#77).
-            if (liveSnap.backfilling) SyncingHistoryNote(chunks = liveSnap.syncChunksThisSession)
             // Explained score state (COMPONENT 2): when there's no own number to show, say WHY and WHAT to
             // do. "Calibrating" (N more nights, no fake number), "Last night · <date>" (#802 carry-over)
             // or "Needs the strap" (no data overnight). The carried Charge now draws a dimmed filled ring on
@@ -2752,22 +2754,9 @@ private fun SyncStatusChip(
     val tap = onRescan?.takeIf { !scanning }
     when (state) {
         is SyncChipState.Syncing -> {
-            // Both counts are inflected, so "1 chunk" and "1 page" read correctly. Android <plurals>
-            // inflects one quantity per resource, so each count resolves separately and a template
-            // sentence joins them — the joiner sits inside the template, never on a resource edge,
-            // because aapt2 strips edge whitespace (#2041).
             val chunksText = uiPlural(R.plurals.sync_chip_chunks_count, state.chunks, state.chunks)
-            val pagesText = state.pagesBehind?.let {
-                uiPlural(R.plurals.sync_chip_pages_behind_count, it, it)
-            }
-            ChipCapsule(
-                Icons.Filled.Autorenew, "${state.chunks}", Palette.accent,
-                desc = if (pagesText != null) {
-                    uiString(R.string.l10n_today_screen_sync_chip_syncing_pages_desc_ad763b39, chunksText, pagesText)
-                } else {
-                    uiString(R.string.l10n_today_screen_sync_chip_syncing_desc_92daf60c, chunksText)
-                },
-                detail = pagesText,
+            HeaderSyncSpinner(
+                desc = uiString(R.string.l10n_today_screen_sync_chip_syncing_desc_92daf60c, chunksText),
                 onClick = tap,
             )
         }
@@ -2781,6 +2770,49 @@ private fun SyncStatusChip(
             onClick = tap)
         SyncChipState.Hidden -> Unit
         // cold start — render nothing; the building-scores note covers it.
+    }
+}
+
+/** Spinning refresh mark in the Today header. Shown only while a sync is in flight, with no
+ *  chunk count and no "pages behind" line. Same disc size as the avatar and add button. */
+@Composable
+private fun HeaderSyncSpinner(desc: String, onClick: (() -> Unit)?) {
+    val rotation = rememberInfiniteTransition(label = "header-sync").animateFloat(
+        initialValue = 0f,
+        targetValue = 360f,
+        animationSpec = infiniteRepeatable(animation = tween(durationMillis = 900, easing = LinearEasing)),
+        label = "header-sync-rotation",
+    )
+    val interaction = remember { MutableInteractionSource() }
+    Box(
+        modifier = Modifier
+            .size(HeaderClusterControl)
+            .liquidPress(interaction)
+            .clip(CircleShape)
+            .background(Color.White.copy(alpha = 0.16f))
+            .then(
+                if (onClick != null) {
+                    Modifier.clickable(
+                        interactionSource = interaction,
+                        indication = null,
+                        onClickLabel = uiString(R.string.l10n_today_screen_scan_and_connect_40157030),
+                        onClick = onClick,
+                    )
+                } else {
+                    Modifier
+                },
+            )
+            .semantics { contentDescription = desc },
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(
+            Icons.Filled.Autorenew,
+            contentDescription = null,
+            tint = Color.White,
+            modifier = Modifier
+                .size(18.dp)
+                .graphicsLayer { rotationZ = rotation.value },
+        )
     }
 }
 
@@ -3462,45 +3494,10 @@ private fun SynthesisHeroCard(
     val readDay = carriedDay ?: day
     val recovery = readDay?.recovery
     Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(Metrics.gap)) {
-        // The greeting + SOLID/CALIBRATING data-confidence pill ride in their OWN header row ABOVE the
-        // card, not as a top-end overlay over it (#527). The old overlay sat over the card's "SYNTHESIS"
-        // overline + big status word and, on a narrow phone, collided with them, and squeezing the
-        // status into the leftover width force-broke a single word ("Calibrating" → "Calibrati/ng").
-        // A separate row CAN'T overlap, and the card keeps its FULL width so the status stays one line.
-        // Mirrors the iOS Synthesis header-row layout (TodayView heroSection).
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            // The greeting yields/ellipsises first; the pill keeps its full width (#527).
-            Text(
-                greetingWord(),
-                style = NoopType.subhead,
-                color = Palette.textSecondary,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.weight(1f, fill = false),
-            )
-            Spacer(Modifier.weight(1f))
-            // S4 (#205): the one-word readiness read kept on the hero now the full Readiness card folded
-            // into the Charge-ring tap. Push / Maintain / Rest; hidden when there isn't enough history.
-            // Tapping it opens the Charge breakdown, where the full Readiness card now lives.
-            val readinessLevel = remember(days) {
-                if (days.isEmpty()) ReadinessEngine.Level.INSUFFICIENT
-                else ReadinessEngine.evaluate(days, today = logicalDayKeyNow()).level
-            }
-            readinessWord(readinessLevel)?.let { wordRes ->
-                ReadinessHeroPill(word = uiString(wordRes), level = readinessLevel, onTap = onOpenReadiness)
-            }
-            // SOLID only when TODAY's own row carries a settled recovery, a carried prior-day read is
-            // honestly still CALIBRATING for today, matching the iOS pill (keyed on displayDay.recovery).
-            val todayRecovery = day?.recovery
-            StatePill(
-                title = if (todayRecovery != null) uiString(R.string.today_score_solid)
-                else uiString(R.string.score_state_title_calibrating).uppercase(),
-                tone = if (todayRecovery != null) StrandTone.Accent else StrandTone.Neutral,
-            )
+        // Greeting and the SOLID / CALIBRATING pill live IN the card, on the card's own padding, so
+        // the pill's edges line up with the text below instead of floating in the gap above it.
+        val confidenceHeader: @Composable () -> Unit = {
+            SynthesisConfidenceRow(days = days, todayRecovery = day?.recovery, onOpenReadiness = onOpenReadiness)
         }
         // S4: the Synthesis card collapses to a one-liner that expands on tap. The headline (the status) is
         // the SAME in both states, only the detail body and chrome fold, never the read (#506).
@@ -3564,6 +3561,7 @@ private fun SynthesisHeroCard(
                     // FLAT card to match iOS (no navy-bevel gradient / border): identity comes from the white
                     // headline alone. tint = null routes to the neutral FLAT surfaceRaised + hairline path.
                     tint = null,
+                    header = confidenceHeader,
                 )
             }
         } else {
@@ -3580,6 +3578,8 @@ private fun SynthesisHeroCard(
                         onClick = onToggleSynthesis,
                     ),
             ) {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                confidenceHeader()
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                         Text(uiString(R.string.l10n_today_screen_synthesis_876bc749), style = NoopType.overline, color = Palette.textTertiary)
@@ -3609,8 +3609,44 @@ private fun SynthesisHeroCard(
                         modifier = Modifier.size(18.dp),
                     )
                 }
+                }
             }
         }
+    }
+}
+
+/** Greeting plus the readiness and SOLID / CALIBRATING pills, sharing the card's inset. */
+@Composable
+private fun SynthesisConfidenceRow(
+    days: List<DailyMetric>,
+    todayRecovery: Double?,
+    onOpenReadiness: () -> Unit,
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            greetingWord(),
+            style = NoopType.subhead,
+            color = Palette.textSecondary,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f),
+        )
+        val readinessLevel = remember(days) {
+            if (days.isEmpty()) ReadinessEngine.Level.INSUFFICIENT
+            else ReadinessEngine.evaluate(days, today = logicalDayKeyNow()).level
+        }
+        readinessWord(readinessLevel)?.let { wordRes ->
+            ReadinessHeroPill(word = uiString(wordRes), level = readinessLevel, onTap = onOpenReadiness)
+        }
+        StatePill(
+            title = if (todayRecovery != null) uiString(R.string.today_score_solid)
+            else uiString(R.string.score_state_title_calibrating).uppercase(),
+            tone = if (todayRecovery != null) StrandTone.Accent else StrandTone.Neutral,
+        )
     }
 }
 
