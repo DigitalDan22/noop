@@ -6,6 +6,7 @@ import android.content.Intent
 import android.content.SharedPreferences
 import android.os.Build
 import android.os.Bundle
+import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
@@ -20,7 +21,6 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -72,6 +72,17 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         WindowCompat.setDecorFitsSystemWindows(window, false)
+        // Draw into the cutout so the sky reaches the physical top. Insets still pad the content.
+        // ALWAYS is API 30; SHORT_EDGES is the equivalent on API 28–29. No cutout is a no-op.
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            window.attributes = window.attributes.apply {
+                layoutInDisplayCutoutMode = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                    WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_ALWAYS
+                } else {
+                    WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
+                }
+            }
+        }
         // NOTE: `crash` stays RAW here on purpose. acknowledge() fingerprints what it is given, and
         // pendingCrash() fingerprints the stored file — hand it redacted text and the two hashes never
         // match, so the screen would reappear on every launch forever, which is precisely the loop the
@@ -152,17 +163,9 @@ class MainActivity : ComponentActivity() {
         BackgroundImageStore.load(this)
         BottomBarStyleStore.load(this)   // #1836: bottom-bar layout choice, default the shipped slot
 
-        // Debug preview of the Pixel 9+ layer on an emulator:
-        //   adb shell am start -n <applicationId>/com.noop.ui.MainActivity --ez pixel_chrome true
-        if (BuildConfig.DEBUG) {
-            PixelDevices.previewEnabled = intent.getBooleanExtra("pixel_chrome", false)
-        }
         setContent {
-            val chrome = if (PixelDevices.isCurrent()) PixelChrome.Active else PixelChrome.Standard
-            CompositionLocalProvider(LocalPixelChrome provides chrome) {
-                NoopTheme {
-                    NoopRoot()
-                }
+            NoopTheme {
+                NoopRoot()
             }
         }
     }

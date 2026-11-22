@@ -150,11 +150,7 @@ fun StepsCalibrationScreen(
     }
 
     Surface(modifier = Modifier.fillMaxSize(), color = Palette.surfaceBase) {
-        Column(
-            modifier = Modifier.fillMaxSize().then(
-                if (LocalPixelChrome.current.active) Modifier.statusBarsPadding() else Modifier,
-            ),
-        ) {
+        Column(modifier = Modifier.fillMaxSize().statusBarsPadding()) {
             Header(onClose)
             Hairline()
             Column(

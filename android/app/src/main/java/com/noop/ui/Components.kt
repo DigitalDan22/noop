@@ -39,7 +39,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.size
@@ -187,7 +186,7 @@ fun Modifier.frostedCardSurface(
 @Composable
 fun NoopCard(
     modifier: Modifier = Modifier,
-    padding: Dp = LocalPixelChrome.current.cardPadding,
+    padding: Dp = AppChrome.cardPadding,
     tint: Color? = null,
     content: @Composable () -> Unit,
 ) {
@@ -1303,16 +1302,15 @@ fun ScreenScaffold(
     // layout); with a topBackground the canvas + scene paint in the wrapping Box's background (below) and
     // the column stays TRANSPARENT so the scene shows through behind the scroll content. Pulled out so the
     // two paths share one body.
-    val chrome = LocalPixelChrome.current
     val statusBarTop = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
-    // Pixel 9+ drops the shell's status-bar inset so this scaffold's box reaches the top of the
-    // window and the sky paints behind the clock. The content still clears the clock, here.
-    val contentTop = topPadding + if (chrome.active) statusBarTop else 0.dp
-    // Pixel 9+ shortens the scroll viewport by the bar, so cards never sit under the glass.
-    // The backdrop box stays full-height, so the sky still shows through the bar.
-    val viewportBottom = if (chrome.active) BottomBarStyleStore.barHeightForContent() else 0.dp
-    val contentBottom = chrome.screenBottomClearance +
-        if (chrome.active) 0.dp else BottomBarStyleStore.barHeightForContent()
+    // The shell does not inset the status bar, so this scaffold reaches the top of the window
+    // and the sky paints behind the clock. Content still clears the clock.
+    val contentTop = topPadding + statusBarTop
+    // Shorten the scroll viewport by the overlay bar so cards never sit under the glass.
+    // The backdrop box stays full-height, so the sky still shows through the bar. Zero when
+    // the bar is in the reserved slot, which has already taken that space.
+    val viewportBottom = BottomBarStyleStore.barHeightForContent()
+    val contentBottom = AppChrome.screenBottomClearance
     val columnModifier: Modifier =
         if (topBackground == null) {
             modifier.fillMaxWidth().background(Palette.surfaceBase)
@@ -1322,24 +1320,23 @@ fun ScreenScaffold(
     val column: @Composable () -> Unit = {
         Column(
             modifier = columnModifier
-                // Pixel 9+ insets the SCROLL VIEWPORT, outside verticalScroll, so rows cannot draw
-                // under the glass. The backdrop behind this column still fills the screen.
+                // Inset the SCROLL VIEWPORT, outside verticalScroll, so rows cannot draw under the
+                // glass. The backdrop behind this column still fills the screen. Zero when the bar
+                // is in the reserved slot.
                 .padding(bottom = viewportBottom)
                 .verticalScroll(rememberScrollState())
-                // #1836: the bar's height is added to the CONTENT's bottom padding, not to the screen's
-                // layout. That distinction is the whole overlay: the screen reaches the bottom edge so its
-                // backdrop paints behind and around the glass, while the scrolling content still stops
-                // clear of the bar. Zero when the overlay is off, so the slot layout is untouched.
-                // Pixel 9+ moves that clearance onto the viewport instead, above.
+                // #1836: the overlay bar's height is on the viewport above, not added again here, so
+                // 3-button navigation (a taller bar) is counted once. The slot layout leaves this at
+                // the clearance only, because the Scaffold has already reserved the bar.
                 .padding(
-                    start = chrome.screenHorizontal,
-                    end = chrome.screenHorizontal,
+                    start = AppChrome.screenHorizontal,
+                    end = AppChrome.screenHorizontal,
                     top = contentTop,
                     bottom = contentBottom,
                 ),
             // #765: one shared inter-card spacing token (was a bare `20.dp`), so the eager + lazy scaffolds
             // and every screen through them keep the SAME uniform gap between top-level cards.
-            verticalArrangement = Arrangement.spacedBy(chrome.screenRowSpacing),
+            verticalArrangement = Arrangement.spacedBy(AppChrome.screenRowSpacing),
         ) {
             // Compact top bar: an optional LEADING action (e.g. the Today profile avatar, mirroring iOS's
             // avatar-leading header), the screen title/subtitle, then an optional trailing action (e.g. the
@@ -1380,10 +1377,8 @@ fun ScreenScaffold(
         // backdrop over it, anchored to the TOP and bled UP behind the status bar so it reads as a
         // full-bleed scenic header; the (transparent) scroll content floats OVER both. Mirrors the iOS
         // scaffold's `.background(alignment: .top){ ZStack { surfaceBase; topBackground }.ignoresSafeArea() }`.
-        // Pull the scene up by the status-bar inset when the shell has already pushed this content
-        // below the bar. On Pixel 9+ the shell does not, so the box itself starts at the top of the
-        // window and no extra offset is applied.
-        val bleedOffset = if (chrome.active) 0.dp else statusBarTop
+        // The shell does not push this content below the status bar, so the box already starts at
+        // the top of the window. No extra offset.
         Box(modifier = modifier.fillMaxSize().background(Palette.surfaceBase)) {
             Box(
                 modifier = (
@@ -1396,7 +1391,6 @@ fun ScreenScaffold(
                         Modifier
                             .fillMaxWidth()
                             .align(Alignment.TopCenter)
-                            .offset(y = -bleedOffset)
                     }
                     )
                     // PERF (#scroll-jank): promote the static scene backdrop to its OWN compositing layer so
@@ -1439,7 +1433,7 @@ fun LazyScreenScaffold(
     // (20dp) so every existing caller is byte-for-byte untouched; the liquid Today passes a tighter value
     // to match the iOS Today's compact `VStack(spacing: 12)` section rhythm (the maintainer's "iOS is
     // tighter/slicker" note). Scoped per-scaffold so no other screen's rhythm shifts.
-    rowSpacing: Dp = LocalPixelChrome.current.screenRowSpacing,
+    rowSpacing: Dp = AppChrome.screenRowSpacing,
     leading: (@Composable () -> Unit)? = null,
     trailing: (@Composable () -> Unit)? = null,
     // Optional full-bleed scene drawn behind the scroll content at the TOP of the screen — the SAME slot
@@ -1489,12 +1483,10 @@ fun LazyScreenScaffold(
     // is transparent (scene shows through) while keeping the SAME 28dp screen inset + shared row spacing as
     // the eager ScreenScaffold. The top inset honours [topPadding] (so a custom-header screen can tighten
     // the gap above the first row, exactly like ScreenScaffold's `padding(top = topPadding)`).
-    val chrome = LocalPixelChrome.current
     val statusBarTop = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
-    val contentTop = topPadding + if (chrome.active) statusBarTop else 0.dp
-    val viewportBottom = if (chrome.active) BottomBarStyleStore.barHeightForContent() else 0.dp
-    val contentBottom = chrome.screenBottomClearance +
-        if (chrome.active) 0.dp else BottomBarStyleStore.barHeightForContent()
+    val contentTop = topPadding + statusBarTop
+    val viewportBottom = BottomBarStyleStore.barHeightForContent()
+    val contentBottom = AppChrome.screenBottomClearance
     val listModifier: Modifier =
         if (topBackground == null) {
             modifier.fillMaxWidth().background(Palette.surfaceBase)
@@ -1506,9 +1498,9 @@ fun LazyScreenScaffold(
             modifier = listModifier.padding(bottom = viewportBottom),
             state = listState,
             contentPadding = PaddingValues(
-                start = chrome.screenHorizontal,
+                start = AppChrome.screenHorizontal,
                 top = contentTop,
-                end = chrome.screenHorizontal,
+                end = AppChrome.screenHorizontal,
                 bottom = contentBottom,
             ),
             // #765: the shared inter-card spacing token by default (Today/Explore + the eager screens share
@@ -1531,7 +1523,6 @@ fun LazyScreenScaffold(
         // Identical scene treatment to ScreenScaffold — including promoting the static backdrop to its own
         // compositing layer (an empty graphicsLayer {}) so the scene rasterises once and replays as a
         // texture on every scroll frame instead of being re-issued under the scrolling rows.
-        val bleedOffset = if (chrome.active) 0.dp else statusBarTop
         Box(modifier = modifier.fillMaxSize().background(Palette.surfaceBase)) {
             Box(
                 modifier = (
@@ -1541,7 +1532,7 @@ fun LazyScreenScaffold(
                         Modifier.fillMaxSize()
                     } else {
                         // Default: a top-anchored band bled up behind the status bar.
-                        Modifier.fillMaxWidth().align(Alignment.TopCenter).offset(y = -bleedOffset)
+                        Modifier.fillMaxWidth().align(Alignment.TopCenter)
                     }
                     ).graphicsLayer { },
             ) {

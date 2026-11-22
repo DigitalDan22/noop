@@ -1365,7 +1365,7 @@ fun TodayScreen(
         // FIX 6 (compactness): the liquid Today matches the iOS Today's tight `VStack(spacing: 12)` section
         // rhythm rather than the app-wide 20dp row gap, so the whole screen reads as compact/slick as iOS.
         // Scoped to this scaffold — no other screen's rhythm changes.
-        rowSpacing = LocalPixelChrome.current.todayRowSpacing,
+        rowSpacing = AppChrome.todayRowSpacing,
         // #today-layout (hold-to-drag): the hoisted list state the section drag reads (layoutInfo/scrollBy).
         listState = todayListState,
         // LIQUID SKY BACKDROP (the pilot pattern — LiquidScreenSky.kt): the time-of-day liquid sky sits

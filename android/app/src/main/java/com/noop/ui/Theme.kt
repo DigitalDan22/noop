@@ -462,15 +462,14 @@ object Metrics {
 
 // MARK: - Typography (ported from StrandDesign/Typography.swift §9.2)
 //
-// Helvetica Neue on Apple; on Android the platform grotesque (SansSerif) stands in,
-// except on Pixel 9 and newer, where NoopTheme installs Proxima Nova into [sansFamily].
+// Helvetica Neue on Apple. Android uses Proxima Nova, installed by NoopTheme into [sansFamily].
 // Styles are getters so they read whichever family is current. Numeric/live styles stay
 // in the house sans and request TABULAR figures via fontFeatureSettings = "tnum"
 // (mirroring iOS .monospacedDigit()) so live values don't reflow; Monospace is reserved
 // for the `mono` raw/log style only.
 
 object NoopType {
-    // Set by NoopTheme before children compose. SansSerif until a Pixel layer installs Proxima Nova.
+    // Set by NoopTheme before children compose. Proxima Nova once the theme has installed it.
     internal var sansFamily: FontFamily = FontFamily.SansSerif
     private val monoFamily = FontFamily.Monospace
     private val sans: FontFamily get() = sansFamily
@@ -569,7 +568,7 @@ private fun noopMaterialTypography() = Typography(
 @Suppress("DEPRECATION")
 private fun disableSystemBarContrastScrim(window: android.view.Window) {
     // The setter is deprecated at API 35 and is still what turns off the solid status-bar
-    // scrim on the Pixel 9 / 10 system image. Without it the sky stops at a black band.
+    // scrim. Without it the sky stops at a black band. Below API 29 there is no scrim to clear.
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
         window.isStatusBarContrastEnforced = false
         window.isNavigationBarContrastEnforced = false
@@ -616,15 +615,13 @@ fun NoopTheme(content: @Composable () -> Unit) {
     val tokens = if (dark) DarkTokens else LightTokens
     if (Palette.active !== tokens) Palette.active = tokens
 
-    val pixel = LocalPixelChrome.current.active
-    val sans = if (pixel) rememberProximaNova() else FontFamily.SansSerif
+    val sans = rememberProximaNova()
     NoopType.sansFamily = sans
     val typography = remember(sans) { noopMaterialTypography() }
 
     // Status-/nav-bar icon appearance: light icons on the dark theme, dark icons on the warm-paper
     // light theme (otherwise the icons are invisible). Edge-to-edge keeps the bars transparent.
-    // On Pixel 9+ the system contrast scrim is turned off so the sky painted under the status bar
-    // is the bar, not a black band on top of it.
+    // The contrast scrim is off so the sky painted under the status bar is the bar, not a black band.
     val view = LocalView.current
     if (!view.isInEditMode) {
         SideEffect {
@@ -632,7 +629,7 @@ fun NoopTheme(content: @Composable () -> Unit) {
                 val controller = WindowCompat.getInsetsController(window, view)
                 controller.isAppearanceLightStatusBars = !dark
                 controller.isAppearanceLightNavigationBars = !dark
-                if (pixel) disableSystemBarContrastScrim(window)
+                disableSystemBarContrastScrim(window)
             }
         }
     }
