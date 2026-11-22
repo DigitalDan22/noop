@@ -462,14 +462,14 @@ object Metrics {
 
 // MARK: - Typography (ported from StrandDesign/Typography.swift §9.2)
 //
-// Helvetica Neue on Apple. Android uses Proxima Nova, installed by NoopTheme into [sansFamily].
+// Helvetica Neue on Apple. Android uses Figtree (SIL OFL), installed by NoopTheme into [sansFamily].
 // Styles are getters so they read whichever family is current. Numeric/live styles stay
 // in the house sans and request TABULAR figures via fontFeatureSettings = "tnum"
 // (mirroring iOS .monospacedDigit()) so live values don't reflow; Monospace is reserved
 // for the `mono` raw/log style only.
 
 object NoopType {
-    // Set by NoopTheme before children compose. Proxima Nova once the theme has installed it.
+    // Set by NoopTheme before children compose. Figtree once the theme has installed it.
     internal var sansFamily: FontFamily = FontFamily.SansSerif
     private val monoFamily = FontFamily.Monospace
     private val sans: FontFamily get() = sansFamily
@@ -576,18 +576,19 @@ private fun disableSystemBarContrastScrim(window: android.view.Window) {
 }
 
 @Composable
-private fun rememberProximaNova(): FontFamily = remember {
-    // The supplied family has Regular and Bold (plus italics), not a separate Medium or SemiBold.
-    // Medium stays on Regular; SemiBold maps to Bold so headlines stay heavier than body.
+private fun rememberFigtree(): FontFamily = remember {
+    // Weights the UI actually requests: Regular body, Medium numbers, SemiBold headlines,
+    // Bold display. Italics cover coach Markdown and the scoring-guide footnote, including
+    // italic spans inside a SemiBold or Bold run.
     FontFamily(
-        Font(R.font.proxima_nova_regular, FontWeight.Normal),
-        Font(R.font.proxima_nova_regular, FontWeight.Medium),
-        Font(R.font.proxima_nova_bold, FontWeight.SemiBold),
-        Font(R.font.proxima_nova_bold, FontWeight.Bold),
-        Font(R.font.proxima_nova_italic, FontWeight.Normal, FontStyle.Italic),
-        Font(R.font.proxima_nova_italic, FontWeight.Medium, FontStyle.Italic),
-        Font(R.font.proxima_nova_bold_italic, FontWeight.SemiBold, FontStyle.Italic),
-        Font(R.font.proxima_nova_bold_italic, FontWeight.Bold, FontStyle.Italic),
+        Font(R.font.figtree_regular, FontWeight.Normal),
+        Font(R.font.figtree_medium, FontWeight.Medium),
+        Font(R.font.figtree_semibold, FontWeight.SemiBold),
+        Font(R.font.figtree_bold, FontWeight.Bold),
+        Font(R.font.figtree_italic, FontWeight.Normal, FontStyle.Italic),
+        Font(R.font.figtree_medium_italic, FontWeight.Medium, FontStyle.Italic),
+        Font(R.font.figtree_semibold_italic, FontWeight.SemiBold, FontStyle.Italic),
+        Font(R.font.figtree_bold_italic, FontWeight.Bold, FontStyle.Italic),
     )
 }
 
@@ -615,7 +616,7 @@ fun NoopTheme(content: @Composable () -> Unit) {
     val tokens = if (dark) DarkTokens else LightTokens
     if (Palette.active !== tokens) Palette.active = tokens
 
-    val sans = rememberProximaNova()
+    val sans = rememberFigtree()
     NoopType.sansFamily = sans
     val typography = remember(sans) { noopMaterialTypography() }
 

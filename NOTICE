@@ -21,6 +21,15 @@ redistributed (including commercially) on their own terms. When they are used as
 part of NOOP's combined work, the combined work as a whole is governed by NOOP's
 PolyForm Noncommercial license.
 
+Bundled fonts
+-------------
+
+Figtree — https://github.com/erikdkennedy/figtree
+  Copyright 2022 The Figtree Project Authors (https://github.com/erikdkennedy/figtree)
+  License: SIL Open Font License, Version 1.1 (full text in licenses/figtree/OFL.txt)
+  Used for: the Android UI sans (regular, medium, semibold, bold, and matching italics).
+  The same license text ships inside the Android app at assets/licenses/Figtree-OFL.txt.
+
 Prior reverse-engineering research
 ----------------------------------
 
