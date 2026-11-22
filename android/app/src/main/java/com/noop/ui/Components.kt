@@ -40,6 +40,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -215,9 +216,9 @@ fun DataPendingNote(
     modifier: Modifier = Modifier,
     trailing: (@Composable () -> Unit)? = null,
 ) {
-    NoopCard(modifier = modifier, padding = 18.dp) {
+    NoopCard(modifier = modifier, padding = 22.dp) {
         Row(
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            horizontalArrangement = Arrangement.spacedBy(14.dp),
             verticalAlignment = Alignment.Top,
         ) {
             Icon(
@@ -228,7 +229,7 @@ fun DataPendingNote(
             )
             // weight keeps a long title inside the card. Without it the text measures at its
             // full width and draws across the leading icon and the dismiss control.
-            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Text(title, style = NoopType.headline, color = Palette.textPrimary)
                 Text(body, style = NoopType.subhead, color = Palette.textSecondary)
             }
@@ -1267,6 +1268,24 @@ fun ScenicHeroBackground(
     }
 }
 
+/**
+ * Space at the end of a scroll so the last card can sit fully above the floating bar.
+ *
+ * [BottomBarStyleStore.barHeight] is the glass capsule. The system navigation inset is
+ * added separately: gesture home indicator or the taller 3-button bar. When the bar is
+ * in the reserved slot the scaffold has already reserved both, so only the small
+ * clearance remains.
+ */
+@Composable
+internal fun scrollClearanceAboveBar(): Dp {
+    val navigationInset = if (BottomBarStyleStore.overlay) {
+        WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
+    } else {
+        0.dp
+    }
+    return BottomBarStyleStore.barHeightForContent() + navigationInset + AppChrome.screenBottomClearance
+}
+
 // MARK: - ScreenScaffold (ported from Strand/Screens/ScreenScaffold.swift)
 //
 // Standard scrollable screen container: a title + optional subtitle header over the
@@ -1306,11 +1325,9 @@ fun ScreenScaffold(
     // The shell does not inset the status bar, so this scaffold reaches the top of the window
     // and the sky paints behind the clock. Content still clears the clock.
     val contentTop = topPadding + statusBarTop
-    // Shorten the scroll viewport by the overlay bar so cards never sit under the glass.
-    // The backdrop box stays full-height, so the sky still shows through the bar. Zero when
-    // the bar is in the reserved slot, which has already taken that space.
-    val viewportBottom = BottomBarStyleStore.barHeightForContent()
-    val contentBottom = AppChrome.screenBottomClearance
+    // End padding, inside the scroll, so the last card can move fully above the floating bar
+    // and the system navigation inset (gesture pill or 3-button bar).
+    val contentBottom = scrollClearanceAboveBar()
     val columnModifier: Modifier =
         if (topBackground == null) {
             modifier.fillMaxWidth().background(Palette.surfaceBase)
@@ -1320,14 +1337,9 @@ fun ScreenScaffold(
     val column: @Composable () -> Unit = {
         Column(
             modifier = columnModifier
-                // Inset the SCROLL VIEWPORT, outside verticalScroll, so rows cannot draw under the
-                // glass. The backdrop behind this column still fills the screen. Zero when the bar
-                // is in the reserved slot.
-                .padding(bottom = viewportBottom)
                 .verticalScroll(rememberScrollState())
-                // #1836: the overlay bar's height is on the viewport above, not added again here, so
-                // 3-button navigation (a taller bar) is counted once. The slot layout leaves this at
-                // the clearance only, because the Scaffold has already reserved the bar.
+                // Bottom padding is inside the scroll: the last row can travel up until it clears
+                // the glass bar and the system navigation inset.
                 .padding(
                     start = AppChrome.screenHorizontal,
                     end = AppChrome.screenHorizontal,
@@ -1485,8 +1497,7 @@ fun LazyScreenScaffold(
     // the gap above the first row, exactly like ScreenScaffold's `padding(top = topPadding)`).
     val statusBarTop = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
     val contentTop = topPadding + statusBarTop
-    val viewportBottom = BottomBarStyleStore.barHeightForContent()
-    val contentBottom = AppChrome.screenBottomClearance
+    val contentBottom = scrollClearanceAboveBar()
     val listModifier: Modifier =
         if (topBackground == null) {
             modifier.fillMaxWidth().background(Palette.surfaceBase)
@@ -1495,7 +1506,7 @@ fun LazyScreenScaffold(
         }
     val list: @Composable () -> Unit = {
         LazyColumn(
-            modifier = listModifier.padding(bottom = viewportBottom),
+            modifier = listModifier,
             state = listState,
             contentPadding = PaddingValues(
                 start = AppChrome.screenHorizontal,

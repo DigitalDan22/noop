@@ -163,7 +163,7 @@ fun StepsCalibrationScreen(
                     // bottom edge, so without this the last rows sit behind the bar. Zero when the overlay
                     // is off. Any future destination that scrolls outside ScreenScaffold needs the same.
                     .padding(20.dp)
-                    .padding(bottom = BottomBarStyleStore.barHeightForContent()),
+                    .padding(bottom = scrollClearanceAboveBar()),
                 verticalArrangement = Arrangement.spacedBy(Metrics.sectionGap),
             ) {
                 ExplainerCard()

@@ -1534,6 +1534,12 @@ fun TodayScreen(
         // the Updates inbox (restorable from there). Only anchored to today (offset 0).
         if (displayMetric?.recovery == null) {
             item {
+            // The calibrating note and the "scores are building" note share this row. A Column
+            // gives them the same gap as every other card; without it they stack flush.
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(AppChrome.screenRowSpacing),
+            ) {
             // Explained score state (COMPONENT 2): when there's no own number to show, say WHY and WHAT to
             // do. "Calibrating" (N more nights, no fake number), "Last night · <date>" (#802 carry-over)
             // or "Needs the strap" (no data overnight). The carried Charge now draws a dimmed filled ring on
@@ -1629,6 +1635,7 @@ fun TodayScreen(
                         null
                     },
                 )
+            }
             }
             }
         }
@@ -5853,23 +5860,21 @@ private fun ScoreStateNote(
     val title = scoreStateTitle(state)
     val detail = scoreStateDetail(state)
     val noteA11y = uiString(R.string.l10n_today_screen_state_title_state_detail_f5380609, title, detail)
-    NoopCard {
+    NoopCard(padding = 22.dp) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .semantics { contentDescription = noteA11y },
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            horizontalArrangement = Arrangement.spacedBy(14.dp),
             verticalAlignment = Alignment.Top,
         ) {
             Icon(
                 icon,
                 contentDescription = null,
                 tint = tint,
-                modifier = Modifier
-                    .padding(top = 1.dp)
-                    .size(Metrics.iconSmall),
+                modifier = Modifier.padding(top = 3.dp).size(Metrics.iconSmall),
             )
-            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Text(title, style = NoopType.headline, color = Palette.textPrimary)
                 Text(detail, style = NoopType.subhead, color = Palette.textSecondary)
                 // #731: when the countdown restarted because the user tapped "Recalibrate
